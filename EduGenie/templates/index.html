@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EduGenie — Learning Assistant</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <div class="brand"><span class="brand-mark">✦</span> EduGenie</div>
+      <p class="eyebrow">YOUR AI LEARNING COMPANION</p>
+      <h1>Make learning<br><em>feel simple.</em></h1>
+      <p class="intro">Ask questions, unpack complex ideas, practice with quizzes, and plan what to learn next.</p>
+      <div class="pills"><span>Ask</span><span>Understand</span><span>Practice</span><span>Grow</span></div>
+    </header>
+    <section class="workspace">
+      <form id="task-form">
+        <div class="field-head"><label for="task">What would you like to do?</label><span class="hint">Choose a learning tool</span></div>
+        <div class="task-grid">
+          <label class="task-option"><input type="radio" name="task" value="qa" checked><span class="task-icon">↗</span><b>Ask a question</b><small>Get a clear answer</small></label>
+          <label class="task-option"><input type="radio" name="task" value="explain"><span class="task-icon">✧</span><b>Explain a concept</b><small>Make it easier</small></label>
+          <label class="task-option"><input type="radio" name="task" value="quiz"><span class="task-icon">☷</span><b>Generate a quiz</b><small>Check understanding</small></label>
+          <label class="task-option"><input type="radio" name="task" value="summarize"><span class="task-icon">≡</span><b>Summarize text</b><small>Revise key ideas</small></label>
+          <label class="task-option"><input type="radio" name="task" value="learn"><span class="task-icon">⌁</span><b>Learning path</b><small>Plan your progress</small></label>
+        </div>
+        <div class="field-head level-head"><label for="level">Your current level</label></div>
+        <select id="level" name="level"><option>Beginner</option><option>Intermediate</option><option>Advanced</option></select>
+        <div class="field-head input-head"><label for="prompt">Your topic or text</label><span class="hint" id="char-count">0 / 20,000</span></div>
+        <textarea id="prompt" maxlength="20000" rows="5" placeholder="For example: Explain the Pythagorean theorem with a simple example..." required></textarea>
+        <div class="form-bottom"><span class="privacy">✦ AI-generated answers may need checking.</span><button id="submit" type="submit">Start learning <span>→</span></button></div>
+      </form>
+      <section id="output" class="output" aria-live="polite" hidden>
+        <div class="output-top"><span class="output-label">YOUR LEARNING RESULT</span><button id="copy" type="button" class="copy-btn">Copy</button></div>
+        <div id="result"></div>
+      </section>
+    </section>
+    <footer>Built for curious minds · Powered by Google Gemini</footer>
+  </main>
+<script>
+const form=document.querySelector('#task-form'), promptBox=document.querySelector('#prompt');
+const count=document.querySelector('#char-count'), button=document.querySelector('#submit');
+const output=document.querySelector('#output'), result=document.querySelector('#result');
+promptBox.addEventListener('input',()=>count.textContent=`${promptBox.value.length.toLocaleString()} / 20,000`);
+form.addEventListener('submit',async e=>{
+ e.preventDefault();
+ const task=new FormData(form).get('task'), text=promptBox.value.trim();
+ if(!text)return;
+ const paths={qa:'/qa',explain:'/explain',quiz:'/quiz',summarize:'/summarize',learn:'/learn/recommendations'};
+ button.disabled=true;button.innerHTML='Thinking… <span>✦</span>';
+ output.hidden=false;result.innerHTML='<p class="loading">Putting the pieces together<span>…</span></p>';
+ try{
+  const response=await fetch(paths[task],{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text,level:document.querySelector('#level').value})});
+  const data=await response.json();
+  if(!response.ok)throw new Error(data.detail||'Request failed');
+  if(task==='quiz')renderQuiz(data.result);else renderText(data.result);
+ }catch(err){result.textContent=err.message;result.className='error'}
+ finally{button.disabled=false;button.innerHTML='Start learning <span>→</span>'}
+});
+function renderText(text){result.className='answer';result.textContent=text}
+function renderQuiz(questions){
+ result.className='quiz-list';result.replaceChildren();
+ questions.forEach((q,i)=>{
+  const card=document.createElement('article');card.className='question-card';
+  const title=document.createElement('h3');title.textContent=`${i+1}. ${q.question}`;card.append(title);
+  const opts=document.createElement('div');opts.className='options';
+  q.options.forEach(option=>{
+   const label=document.createElement('label');label.className='quiz-option';
+   const radio=document.createElement('input');radio.type='radio';radio.name=`q${i}`;radio.value=option;
+   const span=document.createElement('span');span.textContent=option;label.append(radio,span);
+   radio.addEventListener('change',()=>{
+    opts.querySelectorAll('.quiz-option').forEach(x=>x.classList.remove('correct','wrong'));
+    label.classList.add(option===q.answer?'correct':'wrong');
+    feedback.textContent=(option===q.answer?'Correct! ':'Not quite. Correct answer: ')+q.answer+(q.explanation?' — '+q.explanation:'');
+    feedback.hidden=false;
+   });opts.append(label);
+  });
+  const feedback=document.createElement('p');feedback.className='feedback';feedback.hidden=true;
+  card.append(opts,feedback);result.append(card);
+ });
+}
+document.querySelector('#copy').addEventListener('click',async()=>{
+ const text=result.innerText;try{await navigator.clipboard.writeText(text);document.querySelector('#copy').textContent='Copied!';setTimeout(()=>document.querySelector('#copy').textContent='Copy',1200)}catch{}
+});
+</script>
+</body>
+</html>
